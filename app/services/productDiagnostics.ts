@@ -1,37 +1,11 @@
-type AdminGraphqlClient = {
-  graphql: (
-    query: string,
-    options?: { variables?: Record<string, unknown> },
-  ) => Promise<{ json: () => Promise<unknown> }>;
-};
+import type { AdminGraphqlClient } from "../types/admin";
+import { PRODUCT_DIAGNOSTICS_QUERY } from "../queries/admin/productDiagnostics";
 
 export type ProductDiagnosticsResult = {
   productCount: number;
   firstProductTitle?: string;
   firstVariantTitle?: string;
 };
-
-const PRODUCT_DIAGNOSTICS_QUERY = `#graphql
-  query productDiagnostics($first: Int!) {
-    products(first: $first) {
-      edges {
-        node {
-          title
-          variants(first: 1) {
-            edges {
-              node {
-                title
-              }
-            }
-          }
-        }
-      }
-    }
-    productsCount {
-      count
-    }
-  }
-`;
 
 export async function fetchProductDiagnostics(
   admin: AdminGraphqlClient,

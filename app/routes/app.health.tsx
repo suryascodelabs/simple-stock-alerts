@@ -3,7 +3,7 @@ import { useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
-import { fetchProductDiagnostics } from "../services/productDiagnostics.server";
+import { fetchProductDiagnostics } from "../services/productDiagnostics";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);

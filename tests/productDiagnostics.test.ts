@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchProductDiagnostics } from "./productDiagnostics.server";
+import { fetchProductDiagnostics } from "../app/services/productDiagnostics";
 
 const mockAdmin = (payload: unknown) => ({
   graphql: vi.fn().mockResolvedValue({
