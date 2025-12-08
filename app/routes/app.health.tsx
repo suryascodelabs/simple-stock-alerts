@@ -20,40 +20,20 @@ export default function HealthPage() {
 
   return (
     <s-page heading="Health check">
-      <s-description-list>
-        <s-description-list-group>
-          <s-text as="h3" variant="headingSm">
-            Shop
-          </s-text>
-          <s-text as="p" variant="bodyMd">
-            {data.shop}
-          </s-text>
-        </s-description-list-group>
-        <s-description-list-group>
-          <s-text as="h3" variant="headingSm">
-            Products found
-          </s-text>
-          <s-text as="p" variant="bodyMd">
-            {data.productCount}
-          </s-text>
-        </s-description-list-group>
-        <s-description-list-group>
-          <s-text as="h3" variant="headingSm">
-            First product
-          </s-text>
-          <s-text as="p" variant="bodyMd">
-            {data.firstProductTitle || "None"}
-          </s-text>
-        </s-description-list-group>
-        <s-description-list-group>
-          <s-text as="h3" variant="headingSm">
-            First variant
-          </s-text>
-          <s-text as="p" variant="bodyMd">
-            {data.firstVariantTitle || "None"}
-          </s-text>
-        </s-description-list-group>
-      </s-description-list>
+      <s-stack direction="block" gap="base">
+        <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+          <p style={{ margin: 0 }}>Shop: {data.shop}</p>
+        </s-box>
+        <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+          <p style={{ margin: 0 }}>Products found: {data.productCount}</p>
+        </s-box>
+        <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+          <p style={{ margin: 0 }}>First product: {data.firstProductTitle || "None"}</p>
+        </s-box>
+        <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+          <p style={{ margin: 0 }}>First variant: {data.firstVariantTitle || "None"}</p>
+        </s-box>
+      </s-stack>
     </s-page>
   );
 }

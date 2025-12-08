@@ -1,5 +1,5 @@
 import { reactRouter } from "@react-router/dev/vite";
-import { defineConfig, type UserConfig } from "vite";
+import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // Related: https://github.com/remix-run/remix/issues/2835#issuecomment-1144102176
@@ -58,6 +58,7 @@ export default defineConfig({
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },
+  // @ts-expect-error Vitest config is allowed by the CLI even if not in Vite types
   test: {
     globals: true,
     environment: "node",
@@ -65,4 +66,4 @@ export default defineConfig({
       reporter: ["text", "lcov"],
     },
   },
-}) satisfies UserConfig;
+});
