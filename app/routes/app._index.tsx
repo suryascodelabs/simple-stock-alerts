@@ -1,251 +1,233 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
+import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
+import {
+  Page,
+  Layout,
+  Card,
+  Text,
+  TextField,
+  Button,
+  BlockStack,
+  InlineStack,
+  Box,
+  Icon,
+  Divider,
+  List,
+  Link,
+  Banner,
+} from "@shopify/polaris";
+import { CheckCircleIcon } from "@shopify/polaris-icons";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+import { authenticate } from "../shopify.server";
+import {
+  getShopSettings,
+  saveShopSettings,
+  validateSettings,
+} from "../services/settings";
 
-  return null;
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const settings = await getShopSettings(session.shop);
+  return { shop: session.shop, settings };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
 
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
+  const validation = validateSettings(
+    formData.get("globalThreshold"),
+    formData.get("alertEmails"),
   );
 
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
+  const values = {
+    globalThreshold:
+      typeof formData.get("globalThreshold") === "string"
+        ? formData.get("globalThreshold")!
+        : "",
+    alertEmails:
+      typeof formData.get("alertEmails") === "string"
+        ? formData.get("alertEmails")!
+        : "",
   };
+
+  if (!validation.parsed) {
+    return { ok: false, errors: validation.errors, values };
+  }
+
+  await saveShopSettings(session.shop, validation.parsed);
+  return { ok: true, settings: validation.parsed };
 };
 
-export default function Index() {
-  const fetcher = useFetcher<typeof action>();
+export default function AppIndex() {
+  const { settings } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
 
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+  const [threshold, setThreshold] = useState(settings.globalThreshold.toString());
+  const [emails, setEmails] = useState(settings.alertEmails.join(", "));
 
   useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
+    if (actionData?.ok && actionData.settings) {
+      setThreshold(actionData.settings.globalThreshold.toString());
+      setEmails(actionData.settings.alertEmails.join(", "));
     }
-  }, [fetcher.data?.product?.id, shopify]);
+  }, [actionData]);
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+  const submitting = useMemo(
+    () => navigation.state === "submitting",
+    [navigation.state],
+  );
+
+  const onThresholdChange = useCallback((value: string) => {
+    setThreshold(value);
+  }, []);
+
+  const onEmailsChange = useCallback((value: string) => {
+    setEmails(value);
+  }, []);
+
+  const onSendTestAlert = useCallback(() => {
+    console.log("Send test alert clicked");
+  }, []);
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
+    <Page
+      title="Simple Stock Alerts"
+      subtitle="Never miss low inventory again. Simple today — powerful features coming soon."
+    >
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="300">
+            <Card>
+              <Box padding="400">
+                <Banner title="Reliability you can count on" tone="info">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    We monitor your inventory in real time using Shopify webhooks. Alerts are delivered instantly —
+                    without duplicates or delays.
+                  </Text>
+                </Banner>
+              </Box>
+            </Card>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references.
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
+            <Card>
+              <Box padding="500">
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingLg">
+                    Alert Settings
+                  </Text>
 
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
-        )}
-      </s-section>
+                  <Form method="post">
+                    <BlockStack gap="300">
+                      <TextField
+                        label="Global low stock threshold"
+                        type="number"
+                        value={threshold}
+                        onChange={onThresholdChange}
+                        autoComplete="off"
+                        helpText="We’ll alert you when any product variant’s available quantity is at or below this number."
+                        name="globalThreshold"
+                        error={actionData?.errors?.globalThreshold}
+                      />
 
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
+                      <TextField
+                        label="Alert email(s)"
+                        value={emails}
+                        onChange={onEmailsChange}
+                        autoComplete="off"
+                        placeholder="you@store.com, warehouse@store.com"
+                        helpText="Comma-separated emails. We’ll send low stock alerts to these addresses."
+                        name="alertEmails"
+                        error={actionData?.errors?.alertEmails}
+                      />
 
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
-      </s-section>
-    </s-page>
+                      <InlineStack align="start" gap="200">
+                        <Button variant="secondary" onClick={onSendTestAlert}>
+                          Send test alert
+                        </Button>
+                        <Button variant="primary" submit loading={submitting}>
+                          Save settings
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Form>
+
+                  <Divider />
+
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingLg">
+                      Status
+                    </Text>
+
+                    <InlineStack gap="100" align="start" blockAlign="center">
+                      <Box as="span" style={{ display: "inline-flex", margin: 0 }}>
+                        <Icon source={CheckCircleIcon} tone="success" />
+                      </Box>
+                      <BlockStack gap="050">
+                        <Text as="span" fontWeight="semibold" variant="bodyMd">
+                          Active
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Webhook connection healthy. Alerts will be sent automatically.
+                        </Text>
+                      </BlockStack>
+                    </InlineStack>
+                  </BlockStack>
+
+                <Divider />
+
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingLg">
+                      Coming Soon
+                    </Text>
+
+                    <InlineStack gap="800" align="start" wrap>
+                      <Box minWidth="220px">
+                        <List type="bullet">
+                          <List.Item>Slack alerts</List.Item>
+                          <List.Item>Daily summary email</List.Item>
+                        </List>
+                      </Box>
+                      <Box minWidth="220px">
+                        <List type="bullet">
+                          <List.Item>Inventory insights</List.Item>
+                        </List>
+                      </Box>
+                    </InlineStack>
+                  </BlockStack>
+
+                  <Divider />
+
+                  <BlockStack gap="100">
+                    <InlineStack gap="200" wrap>
+                      <Text as="span" variant="bodySm" fontWeight="semibold">
+                        Support
+                      </Text>
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        Need help? Contact{" "}
+                        <Link url="mailto:support@simplecodelabs.com">
+                          support@simplecodelabs.com
+                        </Link>
+                      </Text>
+                    </InlineStack>
+
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Built by Simple Code Labs
+                    </Text>
+                  </BlockStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
+    </Page>
   );
 }
 

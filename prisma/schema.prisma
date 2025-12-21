@@ -55,3 +55,12 @@ model ProductVariantInventory {
 
   @@unique([shopId, inventoryItemId, locationId])
 }
+
+model ShopSettings {
+  id              Int      @id @default(autoincrement())
+  shop            String   @unique
+  globalThreshold Int      @default(5)
+  alertEmails     String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
