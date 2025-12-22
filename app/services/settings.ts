@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { ensureStore } from "./store";
 
 export type ShopSettings = {
   shop: string;
@@ -64,7 +65,8 @@ export function validateSettings(
 }
 
 export async function getShopSettings(shop: string): Promise<ShopSettings> {
-  const record = await db.shopSettings.findUnique({ where: { shop } });
+  const store = await ensureStore(shop);
+  const record = await db.shopSettings.findUnique({ where: { shopId: store.id } });
   if (!record) {
     return {
       shop,
@@ -89,19 +91,22 @@ export async function saveShopSettings(
   shop: string,
   data: Pick<ShopSettings, "globalThreshold" | "alertEmails">,
 ) {
+  const store = await ensureStore(shop);
   const payload = {
     globalThreshold: data.globalThreshold,
     alertEmails: data.alertEmails.join(","),
   };
 
   await db.shopSettings.upsert({
-    where: { shop },
+    where: { shopId: store.id },
     update: {
+      shop,
       globalThreshold: payload.globalThreshold,
       alertEmails: payload.alertEmails,
     },
     create: {
       shop,
+      shopId: store.id,
       globalThreshold: payload.globalThreshold,
       alertEmails: payload.alertEmails,
     },

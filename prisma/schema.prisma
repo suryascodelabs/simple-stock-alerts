@@ -38,6 +38,8 @@ model Store {
   updatedAt  DateTime @updatedAt
   inventories ProductVariantInventory[]
   alerts     LowStockAlert[]
+  notificationLogs NotificationLog[]
+  settings   ShopSettings?
 }
 
 model ProductVariantInventory {
@@ -60,6 +62,8 @@ model ProductVariantInventory {
 model ShopSettings {
   id              Int      @id @default(autoincrement())
   shop            String   @unique
+  shopId          Int      @unique
+  store           Store    @relation(fields: [shopId], references: [id])
   globalThreshold Int      @default(5)
   alertEmails     String   @default("")
   createdAt       DateTime @default(now())
@@ -79,7 +83,26 @@ model LowStockAlert {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   resolvedAt      DateTime?
+  logs            NotificationLog[]
 
   @@index([shopId, status])
   @@index([shopId, inventoryItemId])
+}
+
+model NotificationLog {
+  id               Int            @id @default(autoincrement())
+  shopId           Int
+  shop             Store          @relation(fields: [shopId], references: [id])
+  alertId          Int?
+  alert            LowStockAlert? @relation(fields: [alertId], references: [id])
+  channel          String
+  status           String         // queued, sent, failed
+  providerMessageId String?
+  error            String?
+  attempts         Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([shopId])
+  @@index([alertId])
 }
