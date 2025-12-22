@@ -37,6 +37,7 @@ model Store {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   inventories ProductVariantInventory[]
+  alerts     LowStockAlert[]
 }
 
 model ProductVariantInventory {
@@ -63,4 +64,22 @@ model ShopSettings {
   alertEmails     String   @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model LowStockAlert {
+  id              Int      @id @default(autoincrement())
+  shopId          Int
+  shop            Store    @relation(fields: [shopId], references: [id])
+  inventoryItemId String
+  variantId       String?
+  productId       String?
+  available       Int
+  threshold       Int
+  status          String   @default("ready") // ready, sent, cleared
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+
+  @@index([shopId, status])
+  @@index([shopId, inventoryItemId])
 }

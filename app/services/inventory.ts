@@ -14,7 +14,7 @@ export const shouldUpdateInventory = (
 
 export async function upsertInventoryLevel(
   input: InventoryLevelInput,
-): Promise<InventoryLevelRecord> {
+): Promise<{ record: InventoryLevelRecord; previousAvailable: number | null }> {
   const store = await ensureStore(input.shop);
   const incomingUpdatedAt = toDate(input.updatedAt);
 
@@ -28,8 +28,13 @@ export async function upsertInventoryLevel(
     },
   });
 
+  const previousAvailable =
+    existing && typeof existing.available === "number"
+      ? existing.available
+      : null;
+
   if (existing && !shouldUpdateInventory(existing.updatedAt, incomingUpdatedAt)) {
-    return existing as unknown as InventoryLevelRecord;
+    return { record: existing as unknown as InventoryLevelRecord, previousAvailable };
   }
 
   const record = await db.productVariantInventory.upsert({
@@ -59,5 +64,5 @@ export async function upsertInventoryLevel(
     },
   });
 
-  return record as unknown as InventoryLevelRecord;
+  return { record: record as unknown as InventoryLevelRecord, previousAvailable };
 }

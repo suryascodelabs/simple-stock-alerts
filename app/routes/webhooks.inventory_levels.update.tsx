@@ -1,6 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { upsertInventoryLevel } from "../services/inventory";
+import { getShopSettings } from "../services/settings";
+import { evaluateLowStockAlert } from "../services/alerts";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -23,13 +25,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     updatedAt,
   });
 
-  await upsertInventoryLevel({
+  const { record, previousAvailable } = await upsertInventoryLevel({
     shop,
     inventoryItemId,
     locationId,
     available: Number(available),
     updatedAt: new Date(updatedAt),
     source: "webhook",
+  });
+
+  const settings = await getShopSettings(shop);
+  await evaluateLowStockAlert({
+    shop,
+    inventoryItemId,
+    available: record.available,
+    threshold: settings.globalThreshold,
+    previousAvailable,
+    variantId: record.variantId,
+    productId: record.productId,
   });
 
   return new Response();
