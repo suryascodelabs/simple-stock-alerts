@@ -100,3 +100,40 @@ export async function listReadyAlerts(shop: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+export async function listAlerts(shop: string, statuses?: string[]) {
+  const store = await db.store.findUnique({ where: { shop } });
+  if (!store) return [];
+
+  const where: any = { shopId: store.id };
+  if (statuses && statuses.length > 0) {
+    where.status = { in: statuses };
+  }
+
+  return db.lowStockAlert.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function updateAlertStatus(
+  shop: string,
+  alertId: number,
+  status: "ready" | "cleared",
+) {
+  const store = await db.store.findUnique({ where: { shop } });
+  if (!store) return null;
+
+  const alert = await db.lowStockAlert.findFirst({
+    where: { id: alertId, shopId: store.id },
+  });
+  if (!alert) return null;
+
+  return db.lowStockAlert.update({
+    where: { id: alertId },
+    data: {
+      status,
+      resolvedAt: status === "cleared" ? new Date() : null,
+    },
+  });
+}
