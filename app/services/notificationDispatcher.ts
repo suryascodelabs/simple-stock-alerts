@@ -45,6 +45,7 @@ export interface NotificationDispatcher {
  */
 type PrepareOptions = {
   emailRecipients?: string[];
+  maxAttempts?: number; // per log
 };
 
 export async function prepareDispatchJobs(
@@ -61,17 +62,42 @@ export async function prepareDispatchJobs(
 
   const jobs: DispatchJob[] = [];
 
+  const maxAttempts = options.maxAttempts ?? 3;
+
   for (const alert of alerts) {
     for (const channel of channels) {
-      const log = await db.notificationLog.create({
-        data: {
-          shopId: store.id,
-          alertId: alert.id,
-          channel,
-          status: "queued",
-          attempts: 0,
-        },
+      const existingLog = await db.notificationLog.findFirst({
+        where: { alertId: alert.id, channel },
+        orderBy: { updatedAt: "desc" },
       });
+
+      if (existingLog?.status === "sent") {
+        continue; // already delivered on this channel
+      }
+
+      if (existingLog && existingLog.attempts >= maxAttempts) {
+        continue; // give up for now
+      }
+
+      const log =
+        existingLog ??
+        (await db.notificationLog.create({
+          data: {
+            shopId: store.id,
+            alertId: alert.id,
+            channel,
+            status: "queued",
+            attempts: 0,
+          },
+        }));
+
+      // If reusing, ensure we mark as queued before sending again (without bumping attempts yet).
+      if (existingLog) {
+        await db.notificationLog.update({
+          where: { id: log.id },
+          data: { status: "queued" },
+        });
+      }
 
       jobs.push({
         channel,
@@ -124,7 +150,11 @@ export async function dispatchAndSendReadyAlerts(
 ) {
   const jobs = await prepareDispatchJobs(shop, channels, options);
 
+  const successByAlert = new Map<number, number>();
+  const totalByAlert = new Map<number, number>();
+
   for (const job of jobs) {
+    totalByAlert.set(job.payload.alertId, (totalByAlert.get(job.payload.alertId) ?? 0) + 1);
     const sender = senders.find((s) => s.channel === job.channel);
     if (!sender) {
       await updateNotificationLogStatus(job.logId, "failed", { error: "No sender registered" });
@@ -136,12 +166,23 @@ export async function dispatchAndSendReadyAlerts(
       await updateNotificationLogStatus(job.logId, "sent", {
         providerMessageId: result.providerMessageId,
       });
-      await db.lowStockAlert.update({
-        where: { id: job.payload.alertId },
-        data: { status: "sent", resolvedAt: new Date() },
-      });
+      successByAlert.set(
+        job.payload.alertId,
+        (successByAlert.get(job.payload.alertId) ?? 0) + 1,
+      );
     } else {
       await updateNotificationLogStatus(job.logId, "failed", { error: result.error });
+    }
+  }
+
+  // Mark alerts as sent only if all channels succeeded for that alert.
+  for (const [alertId, total] of totalByAlert.entries()) {
+    const success = successByAlert.get(alertId) ?? 0;
+    if (success === total && total > 0) {
+      await db.lowStockAlert.update({
+        where: { id: alertId },
+        data: { status: "sent", resolvedAt: new Date() },
+      });
     }
   }
 

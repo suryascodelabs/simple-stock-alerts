@@ -15,6 +15,7 @@ const mockDb = {
   notificationLog: {
     create: vi.fn(),
     update: vi.fn(),
+    findFirst: vi.fn(),
   },
 };
 

@@ -29,6 +29,7 @@ describe("dispatchAndSendReadyAlerts", () => {
       Promise.resolve({ id: 55, ...data, createdAt: new Date(), updatedAt: new Date() }),
     );
     (db.notificationLog.update as any).mockResolvedValue({});
+    (db.notificationLog.findFirst as any).mockResolvedValue(null);
     (db.lowStockAlert.update as any).mockResolvedValue({});
   });
 
@@ -51,5 +52,43 @@ describe("dispatchAndSendReadyAlerts", () => {
         data: expect.objectContaining({ status: "sent" }),
       }),
     );
+  });
+
+  it("does not mark alert sent when channel fails", async () => {
+    provider.send.mockRejectedValue(new Error("boom"));
+
+    const count = await dispatchAndSendReadyAlerts("shop", ["email"], [sender], {
+      emailRecipients: ["owner@example.com"],
+    });
+
+    expect(count).toBe(1);
+    expect(db.notificationLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 55 },
+        data: expect.objectContaining({ status: "failed" }),
+      }),
+    );
+    expect(db.lowStockAlert.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10 },
+        data: expect.objectContaining({ status: "sent" }),
+      }),
+    );
+  });
+
+  it("skips when attempts exceed maxAttempts", async () => {
+    (db.notificationLog.findFirst as any).mockResolvedValue({
+      id: 99,
+      status: "failed",
+      attempts: 3,
+    });
+
+    const count = await dispatchAndSendReadyAlerts("shop", ["email"], [sender], {
+      emailRecipients: ["owner@example.com"],
+      maxAttempts: 3,
+    });
+
+    expect(count).toBe(0);
+    expect(provider.send).not.toHaveBeenCalled();
   });
 });
