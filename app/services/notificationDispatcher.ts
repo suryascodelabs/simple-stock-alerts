@@ -21,6 +21,7 @@ export type DispatchJob = {
   payload: NotificationPayload;
   channel: NotificationChannel;
   logId: number;
+  recipients?: string[];
 };
 
 // Interfaces to keep transport/channel swappable (DB-backed today; Kafka/others later).
@@ -42,9 +43,14 @@ export interface NotificationDispatcher {
  * Prepares dispatch jobs for all ready alerts for a shop and records them as queued.
  * This is intentionally channel-agnostic: callers choose which channels to fan out to.
  */
+type PrepareOptions = {
+  emailRecipients?: string[];
+};
+
 export async function prepareDispatchJobs(
   shop: string,
   channels: NotificationChannel[] = ["email"],
+  options: PrepareOptions = {},
 ): Promise<DispatchJob[]> {
   const store = await ensureStore(shop);
 
@@ -82,6 +88,7 @@ export async function prepareDispatchJobs(
           threshold: alert.threshold,
           occurredAt: alert.updatedAt,
         },
+        recipients: channel === "email" ? options.emailRecipients : undefined,
       });
     }
   }
@@ -103,4 +110,40 @@ export async function updateNotificationLogStatus(
       attempts: { increment: status === "queued" ? 0 : 1 },
     },
   });
+}
+
+/**
+ * Dispatches and sends ready alerts for a shop using provided channel senders.
+ * Marks logs accordingly and sets the alert status to "sent" on success.
+ */
+export async function dispatchAndSendReadyAlerts(
+  shop: string,
+  channels: NotificationChannel[],
+  senders: ChannelSender[],
+  options: PrepareOptions = {},
+) {
+  const jobs = await prepareDispatchJobs(shop, channels, options);
+
+  for (const job of jobs) {
+    const sender = senders.find((s) => s.channel === job.channel);
+    if (!sender) {
+      await updateNotificationLogStatus(job.logId, "failed", { error: "No sender registered" });
+      continue;
+    }
+
+    const result = await sender.send(job);
+    if (result.status === "sent") {
+      await updateNotificationLogStatus(job.logId, "sent", {
+        providerMessageId: result.providerMessageId,
+      });
+      await db.lowStockAlert.update({
+        where: { id: job.payload.alertId },
+        data: { status: "sent", resolvedAt: new Date() },
+      });
+    } else {
+      await updateNotificationLogStatus(job.logId, "failed", { error: result.error });
+    }
+  }
+
+  return jobs.length;
 }

@@ -3,6 +3,8 @@ import { authenticate } from "../shopify.server";
 import { upsertInventoryLevel } from "../services/inventory";
 import { getShopSettings } from "../services/settings";
 import { evaluateLowStockAlert } from "../services/alerts";
+import { dispatchAndSendReadyAlerts } from "../services/notificationDispatcher";
+import { EmailSender, createConsoleEmailProvider } from "../services/emailSender";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -43,6 +45,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     previousAvailable,
     variantId: record.variantId,
     productId: record.productId,
+  });
+
+  // Fan out any ready alerts via email (other channels can be added later).
+  const emailSender = new EmailSender(
+    createConsoleEmailProvider(),
+    process.env.EMAIL_FROM || "no-reply@simple-stock-alerts.local",
+  );
+  await dispatchAndSendReadyAlerts(shop, ["email"], [emailSender], {
+    emailRecipients: settings.alertEmails,
   });
 
   return new Response();
