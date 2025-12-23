@@ -5,23 +5,6 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
-import {
-  Page,
-  Layout,
-  Card,
-  Text,
-  TextField,
-  Button,
-  BlockStack,
-  InlineStack,
-  Box,
-  Icon,
-  Divider,
-  List,
-  Link,
-  Banner,
-} from "@shopify/polaris";
-import { CheckCircleIcon } from "@shopify/polaris-icons";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
@@ -70,13 +53,16 @@ export default function AppIndex() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
 
-  const [threshold, setThreshold] = useState(settings.globalThreshold.toString());
-  const [emails, setEmails] = useState(settings.alertEmails.join(", "));
+  const [threshold, setThreshold] = useState("");
+  const [emails, setEmails] = useState("");
 
   useEffect(() => {
-    if (actionData?.ok && actionData.settings) {
-      setThreshold(actionData.settings.globalThreshold.toString());
-      setEmails(actionData.settings.alertEmails.join(", "));
+    if (actionData?.ok) {
+      setThreshold("");
+      setEmails("");
+    } else if (actionData?.values) {
+      setThreshold(actionData.values.globalThreshold ?? "");
+      setEmails(actionData.values.alertEmails ?? "");
     }
   }, [actionData]);
 
@@ -98,136 +84,86 @@ export default function AppIndex() {
   }, []);
 
   return (
-    <Page
-      title="Simple Stock Alerts"
-      subtitle="Never miss low inventory again. Simple today — powerful features coming soon."
-    >
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="300">
-            <Card>
-              <Box padding="400">
-                <Banner title="Reliability you can count on" tone="info">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    We monitor your inventory in real time using Shopify webhooks. Alerts are delivered instantly —
-                    without duplicates or delays.
-                  </Text>
-                </Banner>
-              </Box>
-            </Card>
+    <s-page size="base">
+      <s-section
+        heading="Simple Stock Alerts"
+        description="Never miss low inventory again. Simple today — powerful features coming soon."
+      >
+        <s-section>
+          <s-banner tone="info" heading="Reliability you can count on">
+            We monitor your inventory in real time using Shopify webhooks. Alerts are delivered
+            instantly — without duplicates or delays.
+          </s-banner>
+        </s-section>
 
-            <Card>
-              <Box padding="500">
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingLg">
-                    Alert Settings
-                  </Text>
+        <s-section heading="Alert Settings">
+          <Form method="post">
+            <s-stack gap="base">
+              <s-text-field
+                label="Global low stock threshold"
+                type="number"
+                name="globalThreshold"
+                placeholder={settings.globalThreshold?.toString() ?? "5"}
+                value={threshold}
+                onInput={(e: any) => onThresholdChange(e.currentTarget.value)}
+                helptext="We’ll alert you when any product variant’s available quantity is at or below this number."
+                error={actionData?.errors?.globalThreshold}
+              />
 
-                  <Form method="post">
-                    <BlockStack gap="300">
-                      <TextField
-                        label="Global low stock threshold"
-                        type="number"
-                        value={threshold}
-                        onChange={onThresholdChange}
-                        autoComplete="off"
-                        helpText="We’ll alert you when any product variant’s available quantity is at or below this number."
-                        name="globalThreshold"
-                        error={actionData?.errors?.globalThreshold}
-                      />
+              <s-text-field
+                label="Alert email(s)"
+                name="alertEmails"
+                value={emails}
+                onInput={(e: any) => onEmailsChange(e.currentTarget.value)}
+                placeholder="you@store.com, warehouse@store.com"
+                helptext="Comma-separated emails. We’ll send low stock alerts to these addresses."
+                error={actionData?.errors?.alertEmails}
+              />
 
-                      <TextField
-                        label="Alert email(s)"
-                        value={emails}
-                        onChange={onEmailsChange}
-                        autoComplete="off"
-                        placeholder="you@store.com, warehouse@store.com"
-                        helpText="Comma-separated emails. We’ll send low stock alerts to these addresses."
-                        name="alertEmails"
-                        error={actionData?.errors?.alertEmails}
-                      />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "var(--p-space-200, 0.5rem)",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <s-button variant="secondary" type="button" onClick={onSendTestAlert}>
+                  Send test alert
+                </s-button>
+                <s-button variant="primary" type="submit" disabled={submitting}>
+                  {submitting ? "Saving..." : "Save settings"}
+                </s-button>
+              </div>
+            </s-stack>
+          </Form>
+        </s-section>
 
-                      <InlineStack align="start" gap="200">
-                        <Button variant="secondary" onClick={onSendTestAlert}>
-                          Send test alert
-                        </Button>
-                        <Button variant="primary" submit loading={submitting}>
-                          Save settings
-                        </Button>
-                      </InlineStack>
-                    </BlockStack>
-                  </Form>
+        <s-section>
+          <s-banner tone="success" heading="Webhook connection healthy" size="slim">
+            Alerts will be sent automatically.
+          </s-banner>
+        </s-section>
 
-                  <Divider />
+        <s-section heading="Coming Soon">
+          <s-stack gap="small" direction="vertical">
+            <s-text>Slack alerts</s-text>
+            <s-text>Daily summary email</s-text>
+            <s-text>Inventory insights</s-text>
+          </s-stack>
+        </s-section>
 
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingLg">
-                      Status
-                    </Text>
-
-                    <InlineStack gap="100" align="start" blockAlign="center">
-                      <Box as="span" style={{ display: "inline-flex", margin: 0 }}>
-                        <Icon source={CheckCircleIcon} tone="success" />
-                      </Box>
-                      <BlockStack gap="050">
-                        <Text as="span" fontWeight="semibold" variant="bodyMd">
-                          Active
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Webhook connection healthy. Alerts will be sent automatically.
-                        </Text>
-                      </BlockStack>
-                    </InlineStack>
-                  </BlockStack>
-
-                <Divider />
-
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingLg">
-                      Coming Soon
-                    </Text>
-
-                    <InlineStack gap="800" align="start" wrap>
-                      <Box minWidth="220px">
-                        <List type="bullet">
-                          <List.Item>Slack alerts</List.Item>
-                          <List.Item>Daily summary email</List.Item>
-                        </List>
-                      </Box>
-                      <Box minWidth="220px">
-                        <List type="bullet">
-                          <List.Item>Inventory insights</List.Item>
-                        </List>
-                      </Box>
-                    </InlineStack>
-                  </BlockStack>
-
-                  <Divider />
-
-                  <BlockStack gap="100">
-                    <InlineStack gap="200" wrap>
-                      <Text as="span" variant="bodySm" fontWeight="semibold">
-                        Support
-                      </Text>
-                      <Text as="span" variant="bodySm" tone="subdued">
-                        Need help? Contact{" "}
-                        <Link url="mailto:support@simplecodelabs.com">
-                          support@simplecodelabs.com
-                        </Link>
-                      </Text>
-                    </InlineStack>
-
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Built by Simple Code Labs
-                    </Text>
-                  </BlockStack>
-                </BlockStack>
-              </Box>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-    </Page>
+        <s-section heading="Support">
+          <s-text tone="subdued">
+            Need help? Contact{" "}
+            <s-link href="mailto:support@simplecodelabs.com" target="auto">
+              support@simplecodelabs.com
+            </s-link>
+          </s-text>
+          <s-text tone="subdued">Built by Simple Code Labs</s-text>
+        </s-section>
+      </s-section>
+    </s-page>
   );
 }
 

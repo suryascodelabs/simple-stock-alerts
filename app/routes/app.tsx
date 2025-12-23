@@ -25,13 +25,14 @@ export default function App() {
     <PolarisAppProvider i18n={en}>
       <AppProvider embedded apiKey={apiKey}>
         <Frame>
-      <s-app-nav>
-        <s-link href="/app">Home</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
-        <s-link href="/app/health">Health</s-link>
-        <s-link href="/app/alerts">Alerts</s-link>
-      </s-app-nav>
-      <Outlet />
+          <script src="https://cdn.shopify.com/shopifycloud/polaris.js" defer />
+          <s-app-nav>
+            <s-link href="/app">Home</s-link>
+            <s-link href="/app/additional">Additional page</s-link>
+            <s-link href="/app/health">Health</s-link>
+            <s-link href="/app/alerts">Alerts</s-link>
+          </s-app-nav>
+          <Outlet />
         </Frame>
       </AppProvider>
     </PolarisAppProvider>
