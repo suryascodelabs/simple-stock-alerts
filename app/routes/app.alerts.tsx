@@ -54,6 +54,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return null;
 };
 
+const channelLabel = (channel: string) => {
+  switch (channel) {
+    case "email":
+      return "📧 Email";
+    case "slack":
+      return "💬 Slack";
+    case "sms":
+      return "📱 SMS";
+    case "whatsapp":
+      return "🟢 WhatsApp";
+    default:
+      return channel;
+  }
+};
+
+const statusLabel = (status: string) => {
+  switch (status) {
+    case "sent":
+      return "✅ Sent";
+    case "failed":
+      return "⚠️ Failed";
+    case "queued":
+    case "ready":
+      return "⏳ Queued";
+    case "cleared":
+      return "🧹 Cleared";
+    default:
+      return status;
+  }
+};
+
 export default function AlertsPage() {
   const { alerts, logs, statusFilter } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
@@ -162,8 +193,8 @@ export default function AlertsPage() {
                 columnContentTypes={["text", "text", "text", "text"]}
                 headings={["Channel", "Status", "Attempts", "When"]}
                 rows={logs.map((log: any) => [
-                  log.channel,
-                  log.status,
+                  channelLabel(log.channel),
+                  statusLabel(log.status),
                   String(log.attempts ?? 0),
                   new Date(log.createdAt).toLocaleString(),
                 ])}
