@@ -1,16 +1,7 @@
 import type { LoaderFunctionArgs, HeadersFunction, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useRouteError, Form, useNavigation } from "react-router";
+import { Fragment } from "react";
+import { useLoaderData, useRouteError, Form, useNavigation, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  BlockStack,
-  Card,
-  DataTable,
-  InlineStack,
-  Layout,
-  Page,
-  Select,
-  Text,
-} from "@shopify/polaris";
 
 import { authenticate } from "../shopify.server";
 import { listAlerts, updateAlertStatus } from "../services/alerts";
@@ -89,121 +80,183 @@ export default function AlertsPage() {
   const { alerts, logs, statusFilter } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const navigate = useNavigate();
 
   return (
-    <Page title="Alerts" subtitle="Review ready alerts and send history">
-      <BlockStack gap="400">
-        <Card>
-          <BlockStack gap="200">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                Alert queue
-              </Text>
-              <Select
-                labelHidden
-                label="Status filter"
-                value={statusFilter}
-                options={[
-                  { label: "Ready", value: "ready" },
-                  { label: "Sent", value: "sent" },
-                  { label: "Cleared", value: "cleared" },
-                  { label: "All", value: "all" },
-                ]}
-                onChange={(value) => {
-                  const params = new URLSearchParams(window.location.search);
-                  params.set("status", value);
-                  window.location.search = params.toString();
-                }}
-              />
-            </InlineStack>
-            {alerts.length === 0 ? (
-              <Text tone="subdued">No alerts to show.</Text>
-            ) : (
-              <BlockStack gap="200">
-                {alerts.map((alert: any) => (
-                  <Card key={alert.id} roundedAbove="sm">
-                    <BlockStack gap="150">
-                      <InlineStack gap="200" align="space-between">
-                        <BlockStack gap="050">
-                          <Text variant="bodyMd" fontWeight="semibold">
-                            Inventory item: {alert.inventoryItemId}
-                          </Text>
-                          <Text tone="subdued">
-                            Variant: {alert.variantId || "N/A"} | Product:{" "}
-                            {alert.productId || "N/A"}
-                          </Text>
-                          <Text tone="subdued">
-                            Available: {alert.available} | Threshold: {alert.threshold}
-                          </Text>
-                          <Text tone="subdued">Status: {alert.status}</Text>
-                        </BlockStack>
-                        <InlineStack gap="100">
-                          {alert.status !== "cleared" && (
-                            <Form method="post">
-                              <input type="hidden" name="alertId" value={alert.id} />
-                              <input type="hidden" name="intent" value="clear" />
-                              <button className="Polaris-Button" disabled={isSubmitting} type="submit">
-                                <span className="Polaris-Button__Content">
-                                  <span className="Polaris-Button__Text">Clear</span>
-                                </span>
-                              </button>
-                            </Form>
-                          )}
-                          {alert.status === "sent" && (
-                            <Form method="post">
-                              <input type="hidden" name="alertId" value={alert.id} />
-                              <input type="hidden" name="intent" value="resend" />
-                              <button className="Polaris-Button" disabled={isSubmitting} type="submit">
-                                <span className="Polaris-Button__Content">
-                                  <span className="Polaris-Button__Text">Resend</span>
-                                </span>
-                              </button>
-                            </Form>
-                          )}
-                          {alert.status === "ready" && (
-                            <Form method="post">
-                              <input type="hidden" name="alertId" value={alert.id} />
-                              <input type="hidden" name="intent" value="cancel" />
-                              <button className="Polaris-Button" disabled={isSubmitting} type="submit">
-                                <span className="Polaris-Button__Content">
-                                  <span className="Polaris-Button__Text">Cancel</span>
-                                </span>
-                              </button>
-                            </Form>
-                          )}
-                        </InlineStack>
-                      </InlineStack>
-                    </BlockStack>
-                  </Card>
-                ))}
-              </BlockStack>
-            )}
-          </BlockStack>
-        </Card>
+    <s-page size="base">
+      <s-stack gap="large" direction="vertical">
+        <s-section>
+          <s-stack gap="small" alignment="center" wrap={false} style={{ marginBottom: "var(--p-space-200)" }}>
+            <s-text variant="headingMd" font-weight="semibold">Alerts queue</s-text>
+            <s-tooltip content="Filter, resend, or clear alerts that are waiting to send." style={{ display: "inline-block" }}>
+              <span style={{ display: "inline-flex", alignItems: "center" }}>
+                <s-icon name="info-24" tone="subdued"></s-icon>
+              </span>
+            </s-tooltip>
+          </s-stack>
+          <s-box padding="medium" border="base" borderRadius="base" background="surface" style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+            <s-stack gap="small" alignment="center" wrap={false} style={{ marginBottom: "var(--p-space-300)" }}>
+              <s-text tone="subdued" style={{ minWidth: "100px" }}>
+                Status
+              </s-text>
+              <div style={{ width: "180px" }}>
+                <s-select
+                  label="Status filter"
+                  label-visibility="hidden"
+                  value={statusFilter}
+                  onChange={(e: any) => {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set("status", e.currentTarget.value);
+                    navigate(`?${params.toString()}`);
+                  }}
+                >
+                  <s-option value="ready">Ready</s-option>
+                  <s-option value="sent">Sent</s-option>
+                  <s-option value="cleared">Cleared</s-option>
+                  <s-option value="all">All</s-option>
+                </s-select>
+              </div>
+            </s-stack>
 
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Send history
-            </Text>
+            <s-box padding="none" border="base" borderRadius="base" background="surface">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 1fr 0.8fr 0.8fr",
+                  padding: "10px 12px",
+                  fontWeight: 600,
+                  color: "var(--p-text-subdued, #616161)",
+                  background: "#f8f9fa",
+                }}
+              >
+                <span>Item</span>
+                <span>Details</span>
+                <span>Status</span>
+                <span style={{ textAlign: "right" }}>Actions</span>
+              </div>
+              {alerts.length === 0 ? (
+                <div style={{ padding: "12px 12px", borderTop: "1px solid #e1e3e5" }}>
+                  <s-text tone="subdued">No alerts to show.</s-text>
+                </div>
+              ) : (
+                alerts.map((alert: any, index: number) => (
+                  <div
+                  key={alert.id ?? index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr 0.8fr 0.8fr",
+                    padding: "12px 12px",
+                    alignItems: "center",
+                    borderTop: "1px solid #e1e3e5",
+                    rowGap: "6px",
+                  }}
+                  >
+                    <span>
+                      <strong>Inventory:</strong> {alert.inventoryItemId}
+                      <br />
+                      <s-text tone="subdued" as="span">
+                        Available {alert.available} / Threshold {alert.threshold}
+                      </s-text>
+                    </span>
+                    <span>
+                      <s-text tone="subdued" as="span">
+                        Variant: {alert.variantId || "N/A"} | Product: {alert.productId || "N/A"}
+                      </s-text>
+                    </span>
+                    <span>{statusLabel(alert.status)}</span>
+                    <span style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                      {alert.status !== "cleared" && (
+                        <Form method="post">
+                          <input type="hidden" name="alertId" value={alert.id} />
+                          <input type="hidden" name="intent" value="clear" />
+                          <s-button size="slim" type="submit" variant="secondary" disabled={isSubmitting}>
+                            Clear
+                          </s-button>
+                        </Form>
+                      )}
+                      {alert.status === "sent" && (
+                        <Form method="post">
+                          <input type="hidden" name="alertId" value={alert.id} />
+                          <input type="hidden" name="intent" value="resend" />
+                          <s-button size="slim" type="submit" variant="primary" disabled={isSubmitting}>
+                            Resend
+                          </s-button>
+                        </Form>
+                      )}
+                      {alert.status === "ready" && (
+                        <Form method="post">
+                          <input type="hidden" name="alertId" value={alert.id} />
+                          <input type="hidden" name="intent" value="cancel" />
+                          <s-button size="slim" type="submit" variant="secondary" disabled={isSubmitting}>
+                            Cancel
+                          </s-button>
+                        </Form>
+                      )}
+                    </span>
+                  </div>
+                ))
+              )}
+            </s-box>
+          </s-box>
+        </s-section>
+
+        <s-section>
+          <s-stack gap="small" alignment="center" wrap={false} style={{ marginBottom: "var(--p-space-200)" }}>
+            <s-text variant="headingMd" font-weight="semibold">Send history</s-text>
+            <s-tooltip content="Recent delivery attempts across channels." style={{ display: "inline-block" }}>
+              <span style={{ display: "inline-flex", alignItems: "center" }}>
+                <s-icon name="info-24" tone="subdued"></s-icon>
+              </span>
+            </s-tooltip>
+          </s-stack>
+          <s-box
+            padding="none"
+            border="base"
+            borderRadius="base"
+            background="surface"
+            style={{ marginTop: "var(--p-space-300)", boxShadow: "0 0 0 1px #e1e3e5" }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 0.6fr 1.2fr",
+                padding: "10px 12px",
+                fontWeight: 600,
+                color: "var(--p-text-subdued, #616161)",
+              }}
+            >
+              <span>Channel</span>
+              <span>Status</span>
+              <span style={{ textAlign: "center" }}>Attempts</span>
+              <span>When</span>
+            </div>
             {logs.length === 0 ? (
-              <Text tone="subdued">No delivery attempts yet.</Text>
+              <div style={{ padding: "12px 12px", borderTop: "1px solid #e1e3e5" }}>
+                <s-text tone="subdued">No delivery attempts yet.</s-text>
+              </div>
             ) : (
-              <DataTable
-                columnContentTypes={["text", "text", "text", "text"]}
-                headings={["Channel", "Status", "Attempts", "When"]}
-                rows={logs.map((log: any) => [
-                  channelLabel(log.channel),
-                  statusLabel(log.status),
-                  String(log.attempts ?? 0),
-                  new Date(log.createdAt).toLocaleString(),
-                ])}
-              />
+              logs.map((log: any, index: number) => (
+                <div
+                  key={log.id ?? index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 0.6fr 1.2fr",
+                    padding: "12px 12px",
+                    alignItems: "center",
+                    borderTop: "1px solid #e1e3e5",
+                  }}
+                >
+                  <span>{channelLabel(log.channel)}</span>
+                  <span>{statusLabel(log.status)}</span>
+                  <span style={{ textAlign: "center" }}>{String(log.attempts ?? 0)}</span>
+                  <span>{new Date(log.createdAt).toLocaleString()}</span>
+                </div>
+              ))
             )}
-          </BlockStack>
-        </Card>
-      </BlockStack>
-    </Page>
+          </s-box>
+        </s-section>
+      </s-stack>
+    </s-page>
   );
 }
 

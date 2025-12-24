@@ -18,5 +18,10 @@ declare namespace JSX {
     "s-button": any;
     "s-banner": any;
     "s-icon": any;
+    "s-select": any;
+    "s-option": any;
+    "s-box": any;
+    "s-badge": any;
+    "s-tooltip": any;
   }
 }
