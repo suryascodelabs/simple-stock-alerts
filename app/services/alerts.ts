@@ -101,13 +101,22 @@ export async function listReadyAlerts(shop: string) {
   });
 }
 
-export async function listAlerts(shop: string, statuses?: string[]) {
+export async function listAlerts(shop: string, statuses?: string[], search?: string) {
   const store = await db.store.findUnique({ where: { shop } });
   if (!store) return [];
 
   const where: any = { shopId: store.id };
   if (statuses && statuses.length > 0) {
     where.status = { in: statuses };
+  }
+
+  if (search && search.trim()) {
+    const term = search.trim();
+    where.OR = [
+      { inventoryItemId: { contains: term } },
+      { productId: { contains: term } },
+      { variantId: { contains: term } },
+    ];
   }
 
   return db.lowStockAlert.findMany({
@@ -136,4 +145,45 @@ export async function updateAlertStatus(
       resolvedAt: status === "cleared" ? new Date() : null,
     },
   });
+}
+
+type AlertIntent = "resend" | "cancel" | "clear";
+
+/**
+ * Guarded status updates for alert actions.
+ * - resend: only from sent -> ready
+ * - cancel: only from ready -> cleared
+ * - clear: from ready/sent -> cleared
+ */
+export async function applyAlertIntent(shop: string, alertId: number, intent: AlertIntent) {
+  const store = await db.store.findUnique({ where: { shop } });
+  if (!store) return null;
+
+  const alert = await db.lowStockAlert.findFirst({
+    where: { id: alertId, shopId: store.id },
+  });
+  if (!alert) return null;
+
+  switch (intent) {
+    case "resend":
+      if (alert.status !== "sent") return alert;
+      return db.lowStockAlert.update({
+        where: { id: alert.id },
+        data: { status: "ready", resolvedAt: null },
+      });
+    case "cancel":
+      if (alert.status !== "ready") return alert;
+      return db.lowStockAlert.update({
+        where: { id: alert.id },
+        data: { status: "cleared", resolvedAt: new Date() },
+      });
+    case "clear":
+      if (alert.status === "cleared") return alert;
+      return db.lowStockAlert.update({
+        where: { id: alert.id },
+        data: { status: "cleared", resolvedAt: new Date() },
+      });
+    default:
+      return alert;
+  }
 }

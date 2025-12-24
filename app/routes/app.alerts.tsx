@@ -4,17 +4,18 @@ import { useLoaderData, useRouteError, Form, useNavigation, useNavigate } from "
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
-import { listAlerts, updateAlertStatus } from "../services/alerts";
+import { listAlerts, applyAlertIntent } from "../services/alerts";
 import { listNotificationLogs } from "../services/notificationLogs";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") || "all";
+  const search = url.searchParams.get("q") || undefined;
   const statuses =
     statusFilter === "all" ? undefined : statusFilter.split(",").filter(Boolean);
 
-  const alerts = await listAlerts(session.shop, statuses);
+  const alerts = await listAlerts(session.shop, statuses, search);
   const logs = await listNotificationLogs(session.shop);
 
   return { alerts, logs, statusFilter };
@@ -30,16 +31,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return null;
   }
 
-  switch (intent) {
-    case "resend":
-      await updateAlertStatus(session.shop, alertId, "ready");
-      break;
-    case "cancel":
-    case "clear":
-      await updateAlertStatus(session.shop, alertId, "cleared");
-      break;
-    default:
-      break;
+  if (intent === "resend" || intent === "cancel" || intent === "clear") {
+    await applyAlertIntent(session.shop, alertId, intent as any);
   }
 
   return null;
@@ -122,7 +115,7 @@ export default function AlertsPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr 0.8fr 0.8fr",
+                  gridTemplateColumns: "1.2fr 1fr 0.8fr",
                   padding: "10px 12px",
                   fontWeight: 600,
                   color: "var(--p-text-subdued, #616161)",
@@ -132,7 +125,6 @@ export default function AlertsPage() {
                 <span>Item</span>
                 <span>Details</span>
                 <span>Status</span>
-                <span style={{ textAlign: "right" }}>Actions</span>
               </div>
               {alerts.length === 0 ? (
                 <div style={{ padding: "12px 12px", borderTop: "1px solid #e1e3e5" }}>
@@ -144,7 +136,7 @@ export default function AlertsPage() {
                   key={alert.id ?? index}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 0.8fr 0.8fr",
+                    gridTemplateColumns: "1.2fr 1fr 0.8fr",
                     padding: "12px 12px",
                     alignItems: "center",
                     borderTop: "1px solid #e1e3e5",
@@ -164,35 +156,6 @@ export default function AlertsPage() {
                       </s-text>
                     </span>
                     <span>{statusLabel(alert.status)}</span>
-                    <span style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-                      {alert.status !== "cleared" && (
-                        <Form method="post">
-                          <input type="hidden" name="alertId" value={alert.id} />
-                          <input type="hidden" name="intent" value="clear" />
-                          <s-button size="slim" type="submit" variant="secondary" disabled={isSubmitting}>
-                            Clear
-                          </s-button>
-                        </Form>
-                      )}
-                      {alert.status === "sent" && (
-                        <Form method="post">
-                          <input type="hidden" name="alertId" value={alert.id} />
-                          <input type="hidden" name="intent" value="resend" />
-                          <s-button size="slim" type="submit" variant="primary" disabled={isSubmitting}>
-                            Resend
-                          </s-button>
-                        </Form>
-                      )}
-                      {alert.status === "ready" && (
-                        <Form method="post">
-                          <input type="hidden" name="alertId" value={alert.id} />
-                          <input type="hidden" name="intent" value="cancel" />
-                          <s-button size="slim" type="submit" variant="secondary" disabled={isSubmitting}>
-                            Cancel
-                          </s-button>
-                        </Form>
-                      )}
-                    </span>
                   </div>
                 ))
               )}
