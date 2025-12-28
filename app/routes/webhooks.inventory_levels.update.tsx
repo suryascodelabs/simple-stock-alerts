@@ -4,7 +4,7 @@ import { upsertInventoryLevel } from "../services/inventory";
 import { getShopSettings } from "../services/settings";
 import { evaluateLowStockAlert } from "../services/alerts";
 import { dispatchAndSendReadyAlerts } from "../services/notificationDispatcher";
-import { EmailSender, createConsoleEmailProvider } from "../services/emailSender";
+import { EmailSender, createConsoleEmailProvider, createBrevoProvider } from "../services/emailSender";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -36,8 +36,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     source: "webhook",
   });
 
+  console.info("Inventory upserted", {
+    shop,
+    inventoryItemId,
+    previousAvailable,
+    currentAvailable: record.available,
+  });
+
   const settings = await getShopSettings(shop);
-  await evaluateLowStockAlert({
+  const alertResult = await evaluateLowStockAlert({
     shop,
     inventoryItemId,
     available: record.available,
@@ -47,11 +54,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     productId: record.productId,
   });
 
+  console.info("Alert evaluation", {
+    shop,
+    inventoryItemId,
+    threshold: settings.globalThreshold,
+    previousAvailable,
+    currentAvailable: record.available,
+    result: alertResult ? alertResult.status : "noop",
+    alertId: alertResult?.id,
+  });
+
   // Fan out any ready alerts via email (other channels can be added later).
+  const emailProvider =
+    process.env.BREVO_API_KEY && process.env.EMAIL_FROM
+      ? createBrevoProvider(process.env.BREVO_API_KEY)
+      : createConsoleEmailProvider();
+
   const emailSender = new EmailSender(
-    createConsoleEmailProvider(),
+    emailProvider,
     process.env.EMAIL_FROM || "no-reply@simple-stock-alerts.local",
   );
+  console.info("Dispatching alerts", {
+    shop,
+    provider: process.env.BREVO_API_KEY ? "brevo" : "console",
+    recipients: settings.alertEmails,
+  });
   await dispatchAndSendReadyAlerts(shop, ["email"], [emailSender], {
     emailRecipients: settings.alertEmails,
   });

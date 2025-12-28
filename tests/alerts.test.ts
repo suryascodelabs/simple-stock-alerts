@@ -26,10 +26,13 @@ describe("evaluateLowStockAlert", () => {
       "enqueue",
     );
     expect(computeAlertTransition({ available: 2, threshold: 5, previousAvailable: 2 })).toBe(
-      "noop",
+      "enqueue",
     );
     expect(computeAlertTransition({ available: 6, threshold: 5, previousAvailable: 3 })).toBe(
       "clear",
+    );
+    expect(computeAlertTransition({ available: 3, threshold: 5, previousAvailable: null })).toBe(
+      "enqueue",
     );
   });
 
@@ -69,9 +72,8 @@ describe("evaluateLowStockAlert", () => {
       threshold: 5,
       previousAvailable: 2,
     });
-    expect(db.lowStockAlert.updateMany).toHaveBeenCalledWith({
-      where: { shopId: storeId, inventoryItemId, status: "ready" },
-      data: { status: "cleared", resolvedAt: expect.any(Date) },
+    expect(db.lowStockAlert.deleteMany).toHaveBeenCalledWith({
+      where: { shopId: storeId, inventoryItemId },
     });
   });
 });

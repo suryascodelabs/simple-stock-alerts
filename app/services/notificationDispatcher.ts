@@ -150,6 +150,17 @@ export async function dispatchAndSendReadyAlerts(
 ) {
   const jobs = await prepareDispatchJobs(shop, channels, options);
 
+  if (!jobs.length) {
+    console.info("NotificationDispatcher: no ready alerts to send", { shop });
+    return 0;
+  }
+
+  console.info("NotificationDispatcher: sending jobs", {
+    shop,
+    count: jobs.length,
+    channels,
+  });
+
   const successByAlert = new Map<number, number>();
   const totalByAlert = new Map<number, number>();
 
@@ -158,6 +169,10 @@ export async function dispatchAndSendReadyAlerts(
     const sender = senders.find((s) => s.channel === job.channel);
     if (!sender) {
       await updateNotificationLogStatus(job.logId, "failed", { error: "No sender registered" });
+      console.error("NotificationDispatcher: no sender for channel", {
+        channel: job.channel,
+        logId: job.logId,
+      });
       continue;
     }
 
@@ -166,12 +181,24 @@ export async function dispatchAndSendReadyAlerts(
       await updateNotificationLogStatus(job.logId, "sent", {
         providerMessageId: result.providerMessageId,
       });
+      console.info("NotificationDispatcher: job sent", {
+        logId: job.logId,
+        channel: job.channel,
+        alertId: job.payload.alertId,
+        providerMessageId: result.providerMessageId,
+      });
       successByAlert.set(
         job.payload.alertId,
         (successByAlert.get(job.payload.alertId) ?? 0) + 1,
       );
     } else {
       await updateNotificationLogStatus(job.logId, "failed", { error: result.error });
+      console.error("NotificationDispatcher: job failed", {
+        logId: job.logId,
+        channel: job.channel,
+        alertId: job.payload.alertId,
+        error: result.error,
+      });
     }
   }
 

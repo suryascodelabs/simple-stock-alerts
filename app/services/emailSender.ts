@@ -62,6 +62,12 @@ export class EmailSender implements ChannelSender {
 
     const content = renderLowStockEmail(job);
     try {
+      console.info("EmailSender: sending", {
+        recipients,
+        subject: content.subject,
+        channel: this.channel,
+        from: this.from,
+      });
       const result = await this.provider.send({
         to: recipients,
         subject: content.subject,
@@ -71,6 +77,10 @@ export class EmailSender implements ChannelSender {
       });
       return { status: "sent" as const, providerMessageId: result.id };
     } catch (error: any) {
+      console.error("EmailSender: send failed", {
+        error: error?.message || String(error),
+        recipients,
+      });
       return { status: "failed" as const, error: error?.message ?? "Email send failed" };
     }
   }
@@ -82,6 +92,37 @@ export function createConsoleEmailProvider(): EmailProvider {
     async send(input) {
       console.info("Sending email (console provider)", input);
       return { id: "console-provider" };
+    },
+  };
+}
+
+// Brevo (Sendinblue) provider using transactional email API v3.
+export function createBrevoProvider(apiKey: string): EmailProvider {
+  return {
+    async send(input) {
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          "api-key": apiKey,
+        },
+        body: JSON.stringify({
+          sender: input.from ? { email: input.from } : undefined,
+          to: input.to.map((email) => ({ email })),
+          subject: input.subject,
+          textContent: input.text,
+          htmlContent: input.html,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Brevo send failed (${response.status}): ${errorBody}`);
+      }
+
+      const result = await response.json().catch(() => ({}));
+      return { id: result?.messageId || result?.messageId?.[0] || "brevo" };
     },
   };
 }

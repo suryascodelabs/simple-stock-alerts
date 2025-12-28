@@ -15,20 +15,11 @@ export function computeAlertTransition({
   threshold,
   previousAvailable,
 }: Pick<EvaluateInput, "available" | "threshold" | "previousAvailable">) {
-  if (available > threshold) {
-    return "clear";
-  }
-
-  if (
-    previousAvailable !== null &&
-    previousAvailable !== undefined &&
-    previousAvailable > threshold &&
-    available <= threshold
-  ) {
-    return "enqueue";
-  }
-
-  return "noop";
+  // Simplified rule: current value drives action.
+  // - If available <= threshold: enqueue (or keep existing ready)
+  // - If available > threshold: clear (mark existing ready as cleared)
+  if (available <= threshold) return "enqueue";
+  return "clear";
 }
 
 export async function evaluateLowStockAlert({
@@ -49,28 +40,26 @@ export async function evaluateLowStockAlert({
   const action = computeAlertTransition({ available, threshold, previousAvailable });
 
   if (action === "clear") {
-    await db.lowStockAlert.updateMany({
+    await db.lowStockAlert.deleteMany({
       where: {
         shopId: store.id,
         inventoryItemId,
-        status: "ready",
       },
-      data: { status: "cleared", resolvedAt: new Date() },
     });
     return null;
   }
 
   if (action === "enqueue") {
-    const existingReady = await db.lowStockAlert.findFirst({
+    const existingActive = await db.lowStockAlert.findFirst({
       where: {
         shopId: store.id,
         inventoryItemId,
-        status: "ready",
+        status: { in: ["ready", "sent"] },
       },
     });
 
-    if (existingReady) {
-      return existingReady;
+    if (existingActive) {
+      return existingActive;
     }
 
     const alert = await db.lowStockAlert.create({
