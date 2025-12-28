@@ -146,12 +146,12 @@ export async function dispatchAndSendReadyAlerts(
   shop: string,
   channels: NotificationChannel[],
   senders: ChannelSender[],
-  options: PrepareOptions = {},
+  options: PrepareOptions & { traceId?: string } = {},
 ) {
   const jobs = await prepareDispatchJobs(shop, channels, options);
 
   if (!jobs.length) {
-    console.info("NotificationDispatcher: no ready alerts to send", { shop });
+    console.info("NotificationDispatcher: no ready alerts to send", { shop, traceId: options.traceId });
     return 0;
   }
 
@@ -159,6 +159,7 @@ export async function dispatchAndSendReadyAlerts(
     shop,
     count: jobs.length,
     channels,
+    traceId: options.traceId,
   });
 
   const successByAlert = new Map<number, number>();
@@ -172,6 +173,7 @@ export async function dispatchAndSendReadyAlerts(
       console.error("NotificationDispatcher: no sender for channel", {
         channel: job.channel,
         logId: job.logId,
+        traceId: options.traceId,
       });
       continue;
     }
@@ -186,6 +188,7 @@ export async function dispatchAndSendReadyAlerts(
         channel: job.channel,
         alertId: job.payload.alertId,
         providerMessageId: result.providerMessageId,
+        traceId: options.traceId,
       });
       successByAlert.set(
         job.payload.alertId,
@@ -198,6 +201,7 @@ export async function dispatchAndSendReadyAlerts(
         channel: job.channel,
         alertId: job.payload.alertId,
         error: result.error,
+        traceId: options.traceId,
       });
     }
   }

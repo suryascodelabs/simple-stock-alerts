@@ -48,10 +48,12 @@ export class EmailSender implements ChannelSender {
   channel: ChannelSender["channel"] = "email";
   private provider: EmailProvider;
   private from?: string;
+  private traceId?: string;
 
-  constructor(provider: EmailProvider, from?: string) {
+  constructor(provider: EmailProvider, from?: string, traceId?: string) {
     this.provider = provider;
     this.from = from;
+    this.traceId = traceId;
   }
 
   async send(job: DispatchJob) {
@@ -67,6 +69,7 @@ export class EmailSender implements ChannelSender {
         subject: content.subject,
         channel: this.channel,
         from: this.from,
+        traceId: this.traceId,
       });
       const result = await this.provider.send({
         to: recipients,
@@ -80,6 +83,7 @@ export class EmailSender implements ChannelSender {
       console.error("EmailSender: send failed", {
         error: error?.message || String(error),
         recipients,
+        traceId: this.traceId,
       });
       return { status: "failed" as const, error: error?.message ?? "Email send failed" };
     }

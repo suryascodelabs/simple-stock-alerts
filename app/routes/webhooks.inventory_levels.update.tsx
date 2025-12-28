@@ -5,9 +5,27 @@ import { getShopSettings } from "../services/settings";
 import { evaluateLowStockAlert } from "../services/alerts";
 import { dispatchAndSendReadyAlerts } from "../services/notificationDispatcher";
 import { EmailSender, createConsoleEmailProvider, createBrevoProvider } from "../services/emailSender";
+import { checkRateLimit } from "../utils/rateLimit";
+import crypto from "crypto";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
+  const traceId = crypto.randomUUID();
+
+  const windowMs =
+    Number(process.env.WEBHOOK_RATE_WINDOW_MS) && Number(process.env.WEBHOOK_RATE_WINDOW_MS) > 0
+      ? Number(process.env.WEBHOOK_RATE_WINDOW_MS)
+      : 30_000;
+  const max =
+    Number(process.env.WEBHOOK_RATE_MAX) && Number(process.env.WEBHOOK_RATE_MAX) > 0
+      ? Number(process.env.WEBHOOK_RATE_MAX)
+      : 50;
+
+  const rate = checkRateLimit(`webhook:${shop}`, { windowMs, max });
+  if (!rate.allowed) {
+    console.warn("Rate limit hit for webhook", { traceId, shop, windowMs, max });
+    return new Response("Rate limit", { status: 429 });
+  }
 
   const level = payload?.inventory_level ?? payload;
   const inventoryItemId = String(level.inventory_item_id || level.inventoryItemId || "");
@@ -16,11 +34,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const updatedAt = level.updated_at || level.updatedAt || new Date().toISOString();
 
   if (!inventoryItemId || !locationId || available === undefined) {
-    console.warn(`Invalid ${topic} webhook for ${shop}`, { payload });
+    console.warn(`Invalid ${topic} webhook for ${shop}`, { traceId, payload });
     return new Response();
   }
 
   console.log(`Received ${topic} for ${shop}`, {
+    traceId,
     inventoryItemId,
     locationId,
     available,
@@ -37,6 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 
   console.info("Inventory upserted", {
+    traceId,
     shop,
     inventoryItemId,
     previousAvailable,
@@ -55,10 +75,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 
   console.info("Alert evaluation", {
+    traceId,
     shop,
     inventoryItemId,
     threshold: settings.globalThreshold,
-    previousAvailable,
     currentAvailable: record.available,
     result: alertResult ? alertResult.status : "noop",
     alertId: alertResult?.id,
@@ -73,15 +93,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const emailSender = new EmailSender(
     emailProvider,
     process.env.EMAIL_FROM || "no-reply@simple-stock-alerts.local",
+    traceId,
   );
   console.info("Dispatching alerts", {
+    traceId,
     shop,
     provider: process.env.BREVO_API_KEY ? "brevo" : "console",
     recipients: settings.alertEmails,
   });
-  await dispatchAndSendReadyAlerts(shop, ["email"], [emailSender], {
-    emailRecipients: settings.alertEmails,
-  });
+  await dispatchAndSendReadyAlerts(
+    shop,
+    ["email"],
+    [emailSender],
+    {
+      emailRecipients: settings.alertEmails,
+      traceId,
+    },
+  );
 
   return new Response();
 };
