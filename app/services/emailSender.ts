@@ -69,6 +69,7 @@ export class EmailSender implements ChannelSender {
         subject: content.subject,
         channel: this.channel,
         from: this.from,
+        message: "Sending low stock email.",
         traceId: this.traceId,
       });
       const result = await this.provider.send({
@@ -83,6 +84,7 @@ export class EmailSender implements ChannelSender {
       console.error("EmailSender: send failed", {
         error: error?.message || String(error),
         recipients,
+        message: "Email send failed.",
         traceId: this.traceId,
       });
       return { status: "failed" as const, error: error?.message ?? "Email send failed" };

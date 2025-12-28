@@ -151,7 +151,11 @@ export async function dispatchAndSendReadyAlerts(
   const jobs = await prepareDispatchJobs(shop, channels, options);
 
   if (!jobs.length) {
-    console.info("NotificationDispatcher: no ready alerts to send", { shop, traceId: options.traceId });
+    console.info("NotificationDispatcher: no ready alerts to send", {
+      traceId: options.traceId,
+      shop,
+      message: "No pending alerts; nothing to dispatch.",
+    });
     return 0;
   }
 
@@ -173,6 +177,7 @@ export async function dispatchAndSendReadyAlerts(
       console.error("NotificationDispatcher: no sender for channel", {
         channel: job.channel,
         logId: job.logId,
+        message: "No sender registered; skipping job.",
         traceId: options.traceId,
       });
       continue;
@@ -188,6 +193,7 @@ export async function dispatchAndSendReadyAlerts(
         channel: job.channel,
         alertId: job.payload.alertId,
         providerMessageId: result.providerMessageId,
+        message: "Alert delivered successfully.",
         traceId: options.traceId,
       });
       successByAlert.set(
@@ -201,6 +207,7 @@ export async function dispatchAndSendReadyAlerts(
         channel: job.channel,
         alertId: job.payload.alertId,
         error: result.error,
+        message: "Delivery failed; will remain pending/failed.",
         traceId: options.traceId,
       });
     }

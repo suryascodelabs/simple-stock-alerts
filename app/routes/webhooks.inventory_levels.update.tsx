@@ -74,6 +74,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     productId: record.productId,
   });
 
+  const alertDecision =
+    record.available > settings.globalThreshold
+      ? "Stock above threshold; clearing any active alerts."
+      : alertResult
+        ? `Alert ready (id: ${alertResult.id}); stock at/below threshold.`
+        : "Alert already active or no change; not enqueuing another.";
+
   console.info("Alert evaluation", {
     traceId,
     shop,
@@ -82,6 +89,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     currentAvailable: record.available,
     result: alertResult ? alertResult.status : "noop",
     alertId: alertResult?.id,
+    decision: alertDecision,
   });
 
   // Fan out any ready alerts via email (other channels can be added later).
